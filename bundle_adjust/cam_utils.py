@@ -26,12 +26,17 @@ class SatelliteImage:
             self.offset = offset
         self.center = None
 
-    def set_camera_center(self, center=None):
+    def set_camera_center(self, sat_dist, center=None):
         if center is None:
             perspective_approx, err = perspective_rpc_approx(self.rpc, self.offset)
             _, _, _, self.center = decompose_perspective_camera(perspective_approx)
         else:
             self.center = center
+        # The estimated center using the perspective approx is usually far off
+        # Since we have a decent idea of the distance Earth-satellite, we constrain
+        # it here
+        earth_radius = 6378. # In km
+        self.center = (earth_radius + sat_dist)*1000. / np.linalg.norm(self.center) * self.center
 
     def set_footprint(self, lonlat_geojson=None, alt=0):
         if lonlat_geojson is None:

@@ -68,6 +68,8 @@ class BundleAdjustmentPipeline:
                                                        filtering after some initial iterations using soft-L1 cost
                                      "save_figures": boolean, set to False to avoid save illustration images
                                                      of the reprojection error before and after bundle adjustment
+                                     "sat_dist": float (in km), measure the distance from the Earth to the satellite
+                                                     Used to avoid that the estimated center of rotation is completely off
         """
 
         # read bundle adjustment input data
@@ -93,6 +95,7 @@ class BundleAdjustmentPipeline:
         self.clean_outliers = extra_ba_config.get("clean_outliers", True)
         self.max_init_reproj_error = extra_ba_config.get("max_init_reproj_error", None)
         self.save_figures = extra_ba_config.get("save_figures", True)
+        self.sat_dist = extra_ba_config.get("sat_dist", 617) # In km, here WV3
 
         # if aoi is not defined we take the union of all footprints
         self.set_footprints()
@@ -107,7 +110,7 @@ class BundleAdjustmentPipeline:
             self.cameras = ba_data["cameras"].copy()
         else:
             self.set_cameras()
-        self.set_camera_centers()
+        self.set_camera_centers(self.sat_dist)
         flush_print("\n")
 
         flush_print("Bundle Adjustment Pipeline created")
@@ -182,7 +185,7 @@ class BundleAdjustmentPipeline:
             to_print = [n_err_cams, " ".join(["\nCamera {}, error = {:.3f}".format(c, err[c]) for c in err_cams])]
             flush_print("WARNING: {} projection matrices with error larger than 1.0 px\n{}".format(*to_print))
 
-    def set_camera_centers(self):
+    def set_camera_centers(self, sat_distance):
         """
         this function computes an approximation of an optical center for each camera model
         this is done by approximating the RPCs as perspective projection matrices and retrieving the camera center
@@ -191,11 +194,11 @@ class BundleAdjustmentPipeline:
         flush_print("Estimating camera positions...")
         if self.cam_model != "perspective":
             for im in self.images:
-                im.set_camera_center()
+                im.set_camera_center(sat_distance)
         else:
             for im, cam in zip(self.images, self.cameras):
                 _, _, _, center = cam_utils.decompose_perspective_camera(cam)
-                im.set_camera_center(center=center)
+                im.set_camera_center(sat_distance, center=center)
         flush_print("...done in {:.2f} seconds".format(timeit.default_timer() - t0))
 
     def set_cameras(self):
